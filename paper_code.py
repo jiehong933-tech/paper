@@ -41,8 +41,14 @@ font_file = Path("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc")
 if font_file.exists():
     fm.fontManager.addfont(str(font_file))
     plt.rcParams["font.family"] = fm.FontProperties(fname=str(font_file)).get_name()
-else:
-    plt.rcParams["font.sans-serif"] = ["Microsoft JhengHei", "DejaVu Sans"]
+else:  # 其他環境：改用已安裝的中文字型（Windows 正黑體、macOS 蘋方／黑體、Linux Noto／文泉驛）
+    installed = {font.name for font in fm.fontManager.ttflist}
+    chinese = [name for name in ("Microsoft JhengHei", "PingFang TC", "Heiti TC", "Noto Sans CJK TC",
+                                 "Noto Sans CJK JP", "WenQuanYi Zen Hei") if name in installed]
+    if chinese:
+        plt.rcParams["font.family"] = chinese[0]
+    else:
+        print("警告：找不到中文字型，圖中的中文會顯示為方塊。")
 plt.rcParams.update({"axes.unicode_minus": False, "pdf.fonttype": 42})
 
 
