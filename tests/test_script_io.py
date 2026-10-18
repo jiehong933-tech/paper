@@ -32,6 +32,17 @@ def test_wrong_model_type_is_rejected(tmp_path, scenario):
         run_script(tmp_path, _payload(model_type="something_else"))
 
 
+def test_missing_data_file_message(tmp_path):
+    with pytest.raises(FileNotFoundError, match="figure3_shared_data.npz.*圖 3 程式"):
+        run_script(tmp_path, _payload())
+
+
+def test_missing_model_file_message(tmp_path, scenario):
+    write_data(tmp_path, scenario)
+    with pytest.raises(FileNotFoundError, match="nn_gyro_prior_retrained.joblib.*train_nn_gyro_prior.py"):
+        run_script(tmp_path, _payload(), model_placeholder=False)
+
+
 def test_data_fallback_subdir_and_estimate_key(tmp_path, scenario, golden_run):
     """資料檔可放在 figure3_output/，基準欄位也可叫 ukf_estimate。"""
     write_data(tmp_path, scenario, baseline_key="ukf_estimate", subdir="figure3_output")

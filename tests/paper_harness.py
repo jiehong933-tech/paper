@@ -1,10 +1,10 @@
-"""在不修改原始程式的前提下，載入與執行 repo 根目錄的 `paper code`。
+"""在不修改原始程式的前提下，載入與執行 `paper code` 與 `train_nn_gyro_prior.py`。
 
 `paper code` 是沒有副檔名、在模組層級直接讀檔、跑模擬、畫圖與輸出的腳本，
 無法直接 import。本模組提供兩種方式：
 
 1. ``load_definitions``：用 AST 只挑出常數與函式定義（fx、hx、rmse、
-   mode_setting、EKF 的 F 矩陣、區段切分 slice）執行，外部參數
+   EKF 的 F 矩陣、區段切分 slice）執行，外部參數
    （KAPPA、BLEND 等原本來自 joblib 模型檔）由測試注入。
 2. ``run_script``：在暫存目錄中執行整份腳本（含 EKF 與六種 UKF、繪圖與輸出），
    以合成資料與假模型取代缺少的 `figure3_shared_data.npz` 與
@@ -30,6 +30,7 @@ import numpy as np
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PAPER_FILE = REPO_ROOT / "paper code"
+TRAIN_FILE = REPO_ROOT / "train_nn_gyro_prior.py"
 MODEL_TYPE = "gyro_curve_slip_prior_v2"
 
 # 由 load_definitions 執行的模組層級賦值（以被賦值的名稱判斷）。
@@ -145,6 +146,8 @@ def _recording_ukf_class(registry):
             registry.append(self)
 
         def predict(self, dt=None, UT=None, fx=None, **fx_args):
+            if not self.fx_calls:  # 第一次 predict 前：記錄程式設定的 P0 與 Q
+                self.initial_P, self.initial_Q = self.P.copy(), np.array(self.Q, copy=True)
             self.fx_calls.append([])
             super().predict(dt=dt, UT=UT, fx=fx, **fx_args)
             self.log["x_prior"].append(self.x.copy())
@@ -191,17 +194,21 @@ def write_data(directory, scenario, baseline_key="ukf_result", subdir=None):
              **{baseline_key: scenario["baseline_ukf"]})
 
 
-def run_script(workdir, payload=None):
+def run_script(workdir, payload=None, model_placeholder=True):
     """在 workdir 執行整份 `paper code`。
 
     workdir 內需已有 figure3_shared_data.npz（或 figure3_output/ 子目錄）。
-    payload 為 None 時使用 workdir 內真正的 joblib 模型檔。
+    payload 為 None 時使用 workdir 內真正的 joblib 模型檔；否則 joblib.load 直接回傳
+    payload，並（model_placeholder=True 時）建立空的模型檔，讓程式的存在檢查通過。
     """
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
     workdir = Path(workdir)
+    model_file = workdir / "nn_gyro_prior_retrained.joblib"
+    if payload is not None and model_placeholder and not model_file.exists():
+        model_file.touch()
     registry, ekf_prior, ekf_post = [], [], []
     namespace = {
         "__name__": "paper_code_under_test",
@@ -286,3 +293,64 @@ def run_real(workdir):
     (workdir / "figure3_shared_data.npz").symlink_to(data)
     (workdir / "nn_gyro_prior_retrained.joblib").symlink_to(model)
     return run_script(workdir, payload=None)
+
+
+# ---------- 訓練程式 train_nn_gyro_prior.py ----------
+# 訓練程式在模組層級直接訓練，因此同樣以 AST 只挑出需要的部分執行（不訓練）。
+
+_TRAIN_CONSTANTS = {
+    "DT", "STEPS", "KAPPA", "SIGMA_ODO", "SIGMA_GYRO", "ALPHA", "BLEND", "LAMBDA_MAX",
+    "N_TRAIN", "N_TEST", "TRAIN_SEED", "TEST_SEED", "MODEL_SEED",
+}
+
+
+def _assigned_names(node):
+    if isinstance(node, ast.Assign):
+        return {n for t in node.targets for n in _target_names(t)}
+    return set()
+
+
+def _exec_parts(path, select, namespace):
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    body = [node for node in tree.body if select(node)]
+    exec(compile(ast.Module(body=body, type_ignores=[]), str(path), "exec"), namespace)
+    return namespace
+
+
+def load_training(**overrides):
+    """執行訓練程式的常數與 make_sequence；overrides 可覆寫常數（如 N_TRAIN）。"""
+    namespace = {"np": np}
+    _exec_parts(TRAIN_FILE, lambda n: isinstance(n, ast.FunctionDef)
+                or (_assigned_names(n) and _assigned_names(n) <= _TRAIN_CONSTANTS), namespace)
+    namespace.update(overrides)
+    return namespace
+
+
+def training_datasets(namespace):
+    """執行訓練程式中建立 x_train、y_train、x_test、y_test 的原始碼。"""
+    names = {"rng", "x_train", "y_train", "x_test", "y_test"}
+    _exec_parts(TRAIN_FILE, lambda n: bool(_assigned_names(n)) and _assigned_names(n) <= names,
+                namespace)
+    return namespace["x_train"], namespace["y_train"], namespace["x_test"], namespace["y_test"]
+
+
+def training_rollout(namespace, model, scaler):
+    """以指定的 model／scaler 執行訓練程式中的自由遞迴測試，回傳 (histories, final_values)。"""
+    namespace = dict(namespace, model=model, scaler=scaler)
+    names = {"innovations", "histories", "final_values"}
+
+    def select(node):
+        if isinstance(node, ast.For):
+            return isinstance(node.target, ast.Name) and node.target.id == "r_o"
+        return bool(_assigned_names(node)) and _assigned_names(node) <= names
+
+    _exec_parts(TRAIN_FILE, select, namespace)
+    return namespace["histories"], namespace["final_values"]
+
+
+def module_assign(path, name):
+    """回傳模組層級 `name = ...` 的 AST 值節點。"""
+    for node in ast.parse(Path(path).read_text(encoding="utf-8")).body:
+        if _assigned_names(node) == {name}:
+            return node.value
+    raise LookupError(name)

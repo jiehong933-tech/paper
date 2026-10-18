@@ -5,8 +5,17 @@
 | `paper code` | 論文圖 4、圖 5 與消融表：EKF、基準 UKF、範圍投影／解析先驗／MLP 先驗 UKF 及偏差對照組 |
 | `train_nn_gyro_prior.py` | 訓練 MLP 打滑率先驗，輸出 `nn_gyro_prior_retrained.joblib` |
 
-`paper code` 執行時需要同目錄（或 `figure3_output/`）下的 `figure3_shared_data.npz`
-（圖 3 程式產生）以及 `nn_gyro_prior_retrained.joblib`；這兩個檔案目前未放在 repo 中。
+## 執行順序
+
+所有檔案都讀寫在**程式所在的資料夾**（Colab 為目前資料夾），從哪個資料夾執行都可以：
+
+```bash
+python train_nn_gyro_prior.py   # 約 1–2 分鐘，輸出 nn_gyro_prior_retrained.joblib 與訓練圖
+python "paper code"             # 需要 figure3_shared_data.npz（圖 3 程式產生）
+```
+
+`paper code` 需要同目錄（或 `figure3_output/`）下的 `figure3_shared_data.npz`，
+它由圖 3 程式產生，目前不在 repo 中；缺檔時程式會說明缺哪個檔、該先執行哪支程式。
 
 ## 執行測試
 
