@@ -52,7 +52,13 @@ def test_projected_modes_keep_slip_in_range(golden_run, defs):
         assert slip.min() >= 0 and slip.max() <= ns["LAMBDA_MAX"], name
 
 
-def test_projection_does_not_touch_covariance(golden_run, defs):
-    """λ 投影只改均值、不改 P（記錄行為：投影後 P 與更新後 P 相同）。"""
-    ukf = golden_run.ukf["projection"]
-    np.testing.assert_array_equal(ukf.P, ukf.log["P_post"][-1])
+@pytest.mark.parametrize("mode", ["projection", "analytic", "nn"])
+def test_projection_does_not_touch_covariance(golden_run, defs, mode):
+    """λ 投影只改均值、不改 P（記錄行為）：每一步下一次 predict 前的 P 都等於更新後的 P，
+    包括確實發生投影的步。"""
+    log = golden_run.ukf[mode].log
+    slip = np.array(log["x_post"])[:, defs["SLIP"]]
+    clipped = np.flatnonzero((slip < 0) | (slip > golden_run.namespace["LAMBDA_MAX"]))
+    assert clipped[clipped < len(slip) - 1].size > 0          # 確實有投影發生
+    for k in range(len(slip) - 1):
+        np.testing.assert_array_equal(log["P_before_predict"][k + 1], log["P_post"][k])

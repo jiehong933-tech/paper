@@ -1,5 +1,5 @@
 {
-  "description": "合成資料（tests/synthetic.py，seed=20240601）與固定假模型 golden_model() 下 `paper code` 的 RMSE；非論文數值。",
+  "description": "合成資料（tests/synthetic.py，seed=20240601）與固定假模型 golden_model() 下 `paper_code.py` 的 RMSE；非論文數值。",
   "metrics": {
     "raw_odometry": {
       "speed_slip": 3.0412586746405776,

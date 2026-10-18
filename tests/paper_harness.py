@@ -1,10 +1,11 @@
-"""在不修改原始程式的前提下，載入與執行 repo 根目錄的 `paper code`。
+"""在不修改原始程式的前提下，載入與執行 `figure3_simulation.py`、
+`train_nn_gyro_prior.py` 與 `paper_code.py`。
 
-`paper code` 是沒有副檔名、在模組層級直接讀檔、跑模擬、畫圖與輸出的腳本，
-無法直接 import。本模組提供兩種方式：
+三支程式都是在模組層級直接讀檔、跑模擬、畫圖與輸出的腳本，import 就會整支執行。
+本模組提供兩種方式：
 
 1. ``load_definitions``：用 AST 只挑出常數與函式定義（fx、hx、rmse、
-   mode_setting、EKF 的 F 矩陣、區段切分 slice）執行，外部參數
+   EKF 的 F 矩陣、區段切分 slice）執行，外部參數
    （KAPPA、BLEND 等原本來自 joblib 模型檔）由測試注入。
 2. ``run_script``：在暫存目錄中執行整份腳本（含 EKF 與六種 UKF、繪圖與輸出），
    以合成資料與假模型取代缺少的 `figure3_shared_data.npz` 與
@@ -29,7 +30,9 @@ from unittest import mock
 import numpy as np
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PAPER_FILE = REPO_ROOT / "paper code"
+PAPER_FILE = REPO_ROOT / "paper_code.py"
+TRAIN_FILE = REPO_ROOT / "train_nn_gyro_prior.py"
+FIG3_FILE = REPO_ROOT / "figure3_simulation.py"
 MODEL_TYPE = "gyro_curve_slip_prior_v2"
 
 # 由 load_definitions 執行的模組層級賦值（以被賦值的名稱判斷）。
@@ -58,7 +61,7 @@ def _target_names(target):
 
 def load_definitions(alpha=0.02, blend=0.06, kappa=0.002, lambda_max=0.4,
                      n_steps=600):
-    """執行 `paper code` 中的常數與函式定義，回傳命名空間 dict。"""
+    """執行 `paper_code.py` 中的常數與函式定義，回傳命名空間 dict。"""
     tree = ast.parse(paper_source(), filename=str(PAPER_FILE))
     selected = []
     for node in tree.body:
@@ -125,6 +128,23 @@ def _instrumented_tree():
     return ast.fix_missing_locations(tree)
 
 
+@contextlib.contextmanager
+def _in_directory(path):
+    """暫時切換工作目錄。
+
+    執行腳本時不設定 __file__，讓腳本走 BASE_DIR = Path.cwd() 的分支（與 Colab 相同），
+    輸出因此寫進 workdir；同時 coverage 才會把執行紀錄對應到 repo 內的原始檔
+    （coverage 會優先採用 __file__ 指向的路徑）。
+    """
+    import os
+    previous = os.getcwd()
+    os.chdir(path)
+    try:
+        yield
+    finally:
+        os.chdir(previous)
+
+
 def _recording_ukf_class(registry):
     from filterpy.kalman import UnscentedKalmanFilter
 
@@ -141,10 +161,14 @@ def _recording_ukf_class(registry):
             super().__init__(dim_x, dim_z, dt, hx, recording_fx, points, **kwargs)
             self.log = {k: [] for k in (
                 "x_prior", "P_prior", "x_post", "P_post", "y", "S",
-                "sigmas_update", "z")}
+                "sigmas_update", "z", "P_before_predict")}
             registry.append(self)
 
         def predict(self, dt=None, UT=None, fx=None, **fx_args):
+            if not self.fx_calls:  # 第一次 predict 前：記錄程式設定的 P0 與 Q
+                self.initial_P, self.initial_Q = self.P.copy(), np.array(self.Q, copy=True)
+            # 每次 predict 前的 P＝上一步更新（及程式自己的處理，如 λ 投影）之後的 P
+            self.log["P_before_predict"].append(self.P.copy())
             self.fx_calls.append([])
             super().predict(dt=dt, UT=UT, fx=fx, **fx_args)
             self.log["x_prior"].append(self.x.copy())
@@ -174,7 +198,7 @@ class ScriptRun:
 
 def model_payload(model, scaler, alpha=0.02, blend=0.06, kappa=0.002,
                   lambda_max=0.4, model_type=MODEL_TYPE):
-    """組出與 `paper code` 讀取格式相同的模型 dict。"""
+    """組出與 `paper_code.py` 讀取格式相同的模型 dict。"""
     return {"model_type": model_type, "model": model, "scaler": scaler,
             "alpha": alpha, "blend": blend, "kappa": kappa,
             "lambda_max": lambda_max}
@@ -191,21 +215,24 @@ def write_data(directory, scenario, baseline_key="ukf_result", subdir=None):
              **{baseline_key: scenario["baseline_ukf"]})
 
 
-def run_script(workdir, payload=None):
-    """在 workdir 執行整份 `paper code`。
+def run_script(workdir, payload=None, model_placeholder=True):
+    """在 workdir 執行整份 `paper_code.py`。
 
     workdir 內需已有 figure3_shared_data.npz（或 figure3_output/ 子目錄）。
-    payload 為 None 時使用 workdir 內真正的 joblib 模型檔。
+    payload 為 None 時使用 workdir 內真正的 joblib 模型檔；否則 joblib.load 直接回傳
+    payload，並（model_placeholder=True 時）建立空的模型檔，讓程式的存在檢查通過。
     """
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
     workdir = Path(workdir)
+    model_file = workdir / "nn_gyro_prior_retrained.joblib"
+    if payload is not None and model_placeholder and not model_file.exists():
+        model_file.touch()
     registry, ekf_prior, ekf_post = [], [], []
     namespace = {
         "__name__": "paper_code_under_test",
-        "__file__": str(workdir / "paper_code.py"),
         "__ekf_prior_hook__": lambda *a: ekf_prior.append(a),
         "__ekf_post_hook__": lambda *a: ekf_post.append(a),
     }
@@ -219,6 +246,7 @@ def run_script(workdir, payload=None):
         for p in patches:
             stack.enter_context(p)
         stack.enter_context(contextlib.redirect_stdout(buffer))
+        stack.enter_context(_in_directory(workdir))
         # 測試環境多半沒有中文字型；略過 matplotlib 的缺字訊息
         logger = logging.getLogger("matplotlib")
         level = logger.level
@@ -236,7 +264,7 @@ def run_script(workdir, payload=None):
 
 
 def speed_slip_metrics(namespace):
-    """以 `paper code` 自己的 rmse 與區段，計算各方法的速度／打滑率 RMSE。
+    """以 `paper_code.py` 自己的 rmse 與區段，計算各方法的速度／打滑率 RMSE。
 
     回傳 {方法: {"speed_slip", "speed_recovery", "slip_slip", "slip_recovery"}}；
     Raw Odometry 只有速度兩項。
@@ -259,30 +287,153 @@ def speed_slip_metrics(namespace):
     return metrics
 
 
-def find_real_inputs():
-    """尋找論文實際使用的資料與權重；回傳 (data_file, model_file)，缺檔為 None。
+def find_weights():
+    """尋找 MLP 權重 nn_gyro_prior_retrained.joblib；找不到回傳 None。
 
-    搜尋順序：環境變數 PAPER_DATA_DIR、repo 根目錄、repo/figure3_output/。
+    搜尋順序：環境變數 PAPER_DATA_DIR、repo 根目錄。
     """
     import os
     roots = [Path(p) for p in [os.environ.get("PAPER_DATA_DIR")] if p] + [REPO_ROOT]
-    data = model = None
     for root in roots:
-        for candidate in (root / "figure3_shared_data.npz",
-                          root / "figure3_output" / "figure3_shared_data.npz"):
-            if data is None and candidate.exists():
-                data = candidate
-        if model is None and (root / "nn_gyro_prior_retrained.joblib").exists():
-            model = root / "nn_gyro_prior_retrained.joblib"
-    return data, model
+        if (root / "nn_gyro_prior_retrained.joblib").exists():
+            return root / "nn_gyro_prior_retrained.joblib"
+    return None
 
 
-def run_real(workdir):
-    """以論文實際資料與權重執行（連結到暫存目錄，避免輸出覆蓋 repo 內的檔案）。"""
-    data, model = find_real_inputs()
-    if data is None or model is None:
-        return None
+def run_figure3(workdir):
+    """在 workdir 執行 figure3_simulation.py，產生真實的 figure3_shared_data.npz。
+
+    圖 3 程式在模組層級直接執行；在 workdir 中執行讓輸出寫在 workdir，
+    編譯時沿用原檔路徑讓 coverage 能對應行號。回傳 (命名空間, 印出的文字)。
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
     workdir = Path(workdir)
-    (workdir / "figure3_shared_data.npz").symlink_to(data)
-    (workdir / "nn_gyro_prior_retrained.joblib").symlink_to(model)
-    return run_script(workdir, payload=None)
+    namespace = {"__name__": "figure3_under_test"}
+    code = compile(FIG3_FILE.read_text(encoding="utf-8"), str(FIG3_FILE), "exec")
+    buffer = io.StringIO()
+    logger = logging.getLogger("matplotlib")
+    level = logger.level
+    logger.setLevel(logging.ERROR)
+    try:
+        with contextlib.redirect_stdout(buffer), _in_directory(workdir):
+            exec(code, namespace)
+    finally:
+        logger.setLevel(level)
+        plt.close("all")
+    return namespace, buffer.getvalue()
+
+
+def run_real(workdir, payload=None):
+    """以真實資料執行 paper_code.py：先跑圖 3 程式產生資料，再跑主程式。
+
+    payload 為 None 時使用 find_weights() 找到的實際 MLP 權重（找不到回傳 None）；
+    否則以 payload 取代模型（只適合比較不依賴 MLP 的方法）。
+    """
+    workdir = Path(workdir)
+    if payload is None:
+        weights = find_weights()
+        if weights is None:
+            return None
+        (workdir / "nn_gyro_prior_retrained.joblib").symlink_to(weights)
+    run_figure3(workdir)
+    return run_script(workdir, payload=payload)
+
+
+def training_payload(model):
+    """以訓練程式中的 ALPHA、BLEND、KAPPA、LAMBDA_MAX 組出模型 dict（模型本身用 model）。"""
+    train = load_training()
+    return model_payload(model, IdentityScaler(), alpha=train["ALPHA"], blend=train["BLEND"],
+                         kappa=train["KAPPA"], lambda_max=train["LAMBDA_MAX"])
+
+
+class IdentityScaler:
+    def transform(self, features):
+        return np.asarray(features, dtype=float)
+
+
+# 與 MLP 權重無關的方法（paper_code.py 的 ukf_nn 以外全部）
+MLP_INDEPENDENT = ("raw_odometry", "ekf", "baseline_ukf", "ukf_projection", "ukf_analytic",
+                   "ukf_baseline_check", "ukf_bias_known", "ukf_bias_constant")
+
+
+# ---------- 訓練程式 train_nn_gyro_prior.py ----------
+# 訓練程式在模組層級直接訓練，因此同樣以 AST 只挑出需要的部分執行（不訓練）。
+
+_TRAIN_CONSTANTS = {
+    "DT", "STEPS", "KAPPA", "SIGMA_ODO", "SIGMA_GYRO", "ALPHA", "BLEND", "LAMBDA_MAX",
+    "N_TRAIN", "N_TEST", "TRAIN_SEED", "TEST_SEED", "MODEL_SEED",
+}
+
+
+def _assigned_names(node):
+    if isinstance(node, ast.Assign):
+        return {n for t in node.targets for n in _target_names(t)}
+    return set()
+
+
+def _exec_parts(path, select, namespace):
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    body = [node for node in tree.body if select(node)]
+    exec(compile(ast.Module(body=body, type_ignores=[]), str(path), "exec"), namespace)
+    return namespace
+
+
+def load_training(**overrides):
+    """執行訓練程式的常數與 make_sequence；overrides 可覆寫常數（如 N_TRAIN）。"""
+    namespace = {"np": np}
+    _exec_parts(TRAIN_FILE, lambda n: isinstance(n, ast.FunctionDef)
+                or (_assigned_names(n) and _assigned_names(n) <= _TRAIN_CONSTANTS), namespace)
+    namespace.update(overrides)
+    return namespace
+
+
+def training_datasets(namespace):
+    """執行訓練程式中建立 x_train、y_train、x_test、y_test 的原始碼。"""
+    names = {"rng", "train_sequences", "test_sequences", "x_train", "y_train", "x_test", "y_test"}
+    _exec_parts(TRAIN_FILE, lambda n: bool(_assigned_names(n)) and _assigned_names(n) <= names,
+                namespace)
+    return namespace["x_train"], namespace["y_train"], namespace["x_test"], namespace["y_test"]
+
+
+def training_rollout(namespace, model, scaler):
+    """以指定的 model／scaler 執行訓練程式中的自由遞迴測試，回傳 (histories, final_values)。"""
+    namespace = dict(namespace, model=model, scaler=scaler)
+    names = {"innovations", "histories", "final_values"}
+
+    def select(node):
+        if isinstance(node, ast.For):
+            return isinstance(node.target, ast.Name) and node.target.id == "r_o"
+        return bool(_assigned_names(node)) and _assigned_names(node) <= names
+
+    _exec_parts(TRAIN_FILE, select, namespace)
+    return namespace["histories"], namespace["final_values"]
+
+
+def module_assign(path, name):
+    """回傳模組層級 `name = ...` 的 AST 值節點。"""
+    for node in ast.parse(Path(path).read_text(encoding="utf-8")).body:
+        if _assigned_names(node) == {name}:
+            return node.value
+    raise LookupError(name)
+
+
+def clip_bounds(path, suffix):
+    """回傳檔案中第一個參數以 suffix 結尾的 np.clip(...) 的 (下界, 上界) 集合。"""
+    tree = ast.parse(Path(path).read_text(encoding="utf-8"))
+    return {(ast.literal_eval(node.args[1]), ast.literal_eval(node.args[2]))
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call) and ast.unparse(node.func) == "np.clip"
+            and ast.unparse(node.args[0]).endswith(suffix)}
+
+
+def statement(path, target):
+    """回傳模組層級或函式內，指定目標（如 "peak" 或 "(slip_prior, curve_speed)"）的賦值原始碼。"""
+    tree = ast.parse(Path(path).read_text(encoding="utf-8"))
+    found = [ast.unparse(node) for node in ast.walk(tree)
+             if isinstance(node, ast.Assign) and ast.unparse(node.targets[0]) == target]
+    if len(found) != 1:
+        raise LookupError(f"{target}: 找到 {len(found)} 處")
+    return found[0]

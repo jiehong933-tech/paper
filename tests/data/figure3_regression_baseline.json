@@ -1,0 +1,51 @@
+{
+  "description": "figure3_simulation.py（SEED=42）真實資料下，paper_code.py 中與 MLP 權重無關之方法的 RMSE（m/s 與打滑率）；記錄目前程式的數值，非論文數值。",
+  "metrics": {
+    "raw_odometry": {
+      "speed_slip": 4.003541634357055,
+      "speed_recovery": 0.4091097454058316
+    },
+    "ekf": {
+      "speed_slip": 2.829548374782257,
+      "speed_recovery": 5.118522417362809,
+      "slip_slip": 0.15017239528276644,
+      "slip_recovery": 0.2028911674584977
+    },
+    "baseline_ukf": {
+      "speed_slip": 3.6920334606925147,
+      "speed_recovery": 4.79146697666002,
+      "slip_slip": 0.16786002514936071,
+      "slip_recovery": 0.32191011863682256
+    },
+    "ukf_projection": {
+      "speed_slip": 2.502318609958733,
+      "speed_recovery": 5.342493450958114,
+      "slip_slip": 0.11776506491190666,
+      "slip_recovery": 0.37212691348349924
+    },
+    "ukf_analytic": {
+      "speed_slip": 0.5396354516947063,
+      "speed_recovery": 0.7692426608908876,
+      "slip_slip": 0.032304728605895686,
+      "slip_recovery": 0.04194995884236773
+    },
+    "ukf_baseline_check": {
+      "speed_slip": 3.6920334606925147,
+      "speed_recovery": 4.79146697666002,
+      "slip_slip": 0.16786002514936071,
+      "slip_recovery": 0.32191011863682256
+    },
+    "ukf_bias_known": {
+      "speed_slip": 0.48873657830559025,
+      "speed_recovery": 0.3559659238537432,
+      "slip_slip": 0.032211714675214935,
+      "slip_recovery": 0.02492821943087021
+    },
+    "ukf_bias_constant": {
+      "speed_slip": 0.6144419766866109,
+      "speed_recovery": 0.8884322216881626,
+      "slip_slip": 0.038137509212671415,
+      "slip_recovery": 0.04308045028021224
+    }
+  }
+}

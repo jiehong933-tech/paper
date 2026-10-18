@@ -1,6 +1,6 @@
 """合成資料與假模型，用來取代 repo 中沒有的資料檔與 MLP 權重。
 
-合成資料依 `paper code` 的模型產生（狀態順序以程式為準）：
+合成資料依 `paper_code.py` 的模型產生（狀態順序同論文式 (30)）：
     x = [s, v, ψ, λ, b_a, b_g]
     u = [a_meas, ω_meas]，a_meas = a + b_a + 雜訊，ω_meas = vκ + b_g + 雜訊
     z = [v(1+λ) + 雜訊(σ=0.4), vκ + b_g + 雜訊(σ=0.01)]   （同 hx 與 R）
@@ -58,9 +58,9 @@ def make_scenario(seed=SEED, n_steps=N_STEPS, kappa=KAPPA):
 
 
 def reference_baseline_ukf(scenario, kappa=KAPPA):
-    """與圖 3 基準 UKF 相同設定的獨立實作（不經過 `paper code` 的迴圈）。
+    """與圖 3 基準 UKF 相同設定的獨立實作（不經過 `paper_code.py` 的迴圈）。
 
-    用於產生合成資料中的 `ukf_result`，讓 `paper code` 的
+    用於產生合成資料中的 `ukf_result`，讓 `paper_code.py` 的
     baseline_check 有可比對的對象。
     """
     from paper_harness import load_definitions
@@ -79,15 +79,13 @@ def reference_baseline_ukf(scenario, kappa=KAPPA):
     return result
 
 
-class IdentityScaler:
-    def transform(self, features):
-        return np.asarray(features, dtype=float)
+from paper_harness import IdentityScaler  # noqa: E402,F401  （沿用同一個類別）
 
 
 class RecordingModel:
     """假 MLP：輸出 = features @ weights + bias，並記錄每次 predict 的輸入。
 
-    特徵順序同 `paper code`：[curve_speed, λ_post(clip), difference]。
+    特徵順序同 `paper_code.py`：[curve_speed, λ_post(clip), difference]。
     """
 
     def __init__(self, weights=(0.0, 0.0, 0.0), bias=0.0):

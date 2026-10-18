@@ -1,7 +1,7 @@
 """計算各濾波器的 NEES／NIS（僅供參考，不做斷言）。
 
     python tests/tools/nees_nis.py            # 合成資料 + 固定假模型
-    python tests/tools/nees_nis.py --real     # 論文實際資料與權重（需檔案）
+    python tests/tools/nees_nis.py --real     # 圖 3 真實資料；有 MLP 權重時含 NN-UKF
 
 NEES_k = e_kᵀ P_k⁻¹ e_k，e_k = x_true − x̂_k（x̂_k 為程式存下的結果，含 λ 投影），
 P_k 為更新後共變異數；完整 6 維期望值為 6，(v, λ) 子空間期望值為 2。
@@ -20,7 +20,8 @@ TESTS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(TESTS))
 
 import synthetic  # noqa: E402
-from paper_harness import model_payload, run_real, run_script, write_data  # noqa: E402
+from paper_harness import (find_weights, model_payload, run_real, run_script,  # noqa: E402
+                           training_payload, write_data)
 
 SEGMENTS = {"全段": slice(None), "打滑": slice(200, 400), "恢復": slice(400, None)}
 
@@ -80,10 +81,13 @@ def main():
     warnings.filterwarnings("ignore")
     with tempfile.TemporaryDirectory() as workdir:
         if args.real:
-            run = run_real(workdir)
-            if run is None:
-                sys.exit("找不到實際資料或權重檔。")
-            title = "論文實際資料"
+            if find_weights() is not None:
+                run = run_real(workdir)
+                title = "圖 3 真實資料（figure3_simulation.py，SEED=42）＋實際 MLP 權重"
+            else:
+                run = run_real(workdir, payload=training_payload(synthetic.zero_model()))
+                title = ("圖 3 真實資料（figure3_simulation.py，SEED=42）；找不到 MLP 權重，"
+                         "MLP 先驗 UKF 一列使用恆輸出 0 的假模型，不具意義")
         else:
             write_data(workdir, synthetic.make_scenario())
             run = run_script(workdir, model_payload(synthetic.golden_model(),

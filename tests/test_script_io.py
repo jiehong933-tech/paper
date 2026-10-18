@@ -1,4 +1,4 @@
-"""`paper code` 整體流程：資料／模型讀取、基準 UKF 重建檢查與輸出檔格式。"""
+"""`paper_code.py` 整體流程：資料／模型讀取、基準 UKF 重建檢查與輸出檔格式。"""
 
 import numpy as np
 import pytest
@@ -32,6 +32,17 @@ def test_wrong_model_type_is_rejected(tmp_path, scenario):
         run_script(tmp_path, _payload(model_type="something_else"))
 
 
+def test_missing_data_file_message(tmp_path):
+    with pytest.raises(FileNotFoundError, match="figure3_shared_data.npz.*圖 3 程式"):
+        run_script(tmp_path, _payload())
+
+
+def test_missing_model_file_message(tmp_path, scenario):
+    write_data(tmp_path, scenario)
+    with pytest.raises(FileNotFoundError, match="nn_gyro_prior_retrained.joblib.*train_nn_gyro_prior.py"):
+        run_script(tmp_path, _payload(), model_placeholder=False)
+
+
 def test_data_fallback_subdir_and_estimate_key(tmp_path, scenario, golden_run):
     """資料檔可放在 figure3_output/，基準欄位也可叫 ukf_estimate。"""
     write_data(tmp_path, scenario, baseline_key="ukf_estimate", subdir="figure3_output")
@@ -40,7 +51,9 @@ def test_data_fallback_subdir_and_estimate_key(tmp_path, scenario, golden_run):
     assert_array_equal(run.namespace["nn_ukf"], golden_run.namespace["nn_ukf"])
 
 
-def test_baseline_check_reproduces_figure3_baseline(golden_run):
+def test_baseline_check_matches_reference_reimplementation(golden_run):
+    """合成資料的 ukf_result 由 tests/synthetic.py 的獨立實作產生；paper_code.py 的
+    baseline_check 應與之相同。（與真正 figure3_simulation.py 的比對見 test_figure3.py。）"""
     ns = golden_run.namespace
     assert ns["max_gap"] <= 1e-6
     assert "警告" not in golden_run.stdout

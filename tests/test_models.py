@@ -1,6 +1,6 @@
-"""測試項目 1–3：狀態轉移 fx、觀測 hx、EKF Jacobian，以及 mode_setting。
+"""測試項目 1–3：狀態轉移 fx、觀測 hx、EKF Jacobian，以及各 UKF 模式的設定。
 
-狀態順序以程式為準：x = [s, v, ψ, λ, b_a, b_g]（S, V, YAW, SLIP, BA, BG）。
+狀態順序（論文式 (30)，程式相同）：x = [s, v, ψ, λ, b_a, b_g]（S, V, YAW, SLIP, BA, BG）。
 """
 
 import numpy as np
@@ -138,35 +138,42 @@ def test_ekf_F_matches_numeric_jacobian(defs, random_states):
         assert_allclose(defs["F"], J, rtol=1e-6, atol=1e-8)
 
 
-# ---------- mode_setting ----------
+# ---------- 各 UKF 模式的設定（P0、Q、範圍投影） ----------
 
-@pytest.mark.parametrize("mode, use_prior, use_clip", [
-    ("projection", False, True), ("analytic", True, True), ("nn", True, True),
-    ("baseline_check", False, False), ("bias_known", False, False),
-    ("bias_constant", False, False),
-])
-def test_mode_setting_flags(defs, mode, use_prior, use_clip):
-    assert defs["mode_setting"](mode)[:2] == (use_prior, use_clip)
+def test_baseline_modes_use_shared_P0_Q(golden_run, defs):
+    for mode in ("projection", "analytic", "nn", "baseline_check"):
+        ukf = golden_run.ukf[mode]
+        assert_array_equal(ukf.initial_P, defs["P0"])
+        assert_array_equal(ukf.initial_Q, defs["Q"])
 
 
-def test_mode_setting_only_bias_cells_differ(defs):
+def test_bias_modes_only_change_bias_cells(golden_run, defs):
     P0, Q, BA, BG = defs["P0"], defs["Q"], defs["BA"], defs["BG"]
-    _, _, P0_b, Q_b = defs["mode_setting"]("baseline_check")
-    assert_array_equal(P0_b, P0)
-    assert_array_equal(Q_b, Q)
-
-    _, _, P0_k, Q_k = defs["mode_setting"]("bias_known")
-    assert (P0_k[BG, BG], Q_k[BG, BG]) == (1e-10, 1e-14)
-    assert np.argwhere(P0_k != P0).tolist() == [[BG, BG]]
-    assert np.argwhere(Q_k != Q).tolist() == [[BG, BG]]
-
-    _, _, P0_c, Q_c = defs["mode_setting"]("bias_constant")
-    assert_array_equal(P0_c, P0)
-    assert np.argwhere(Q_c != Q).tolist() == [[BA, BA], [BG, BG]]
-    assert Q_c[BA, BA] == Q_c[BG, BG] == 1e-14
+    known, constant = golden_run.ukf["bias_known"], golden_run.ukf["bias_constant"]
+    assert (known.initial_P[BG, BG], known.initial_Q[BG, BG]) == (1e-10, 1e-14)
+    assert np.argwhere(known.initial_P != P0).tolist() == [[BG, BG]]
+    assert np.argwhere(known.initial_Q != Q).tolist() == [[BG, BG]]
+    assert_array_equal(constant.initial_P, P0)
+    assert np.argwhere(constant.initial_Q != Q).tolist() == [[BA, BA], [BG, BG]]
+    assert constant.initial_Q[BA, BA] == constant.initial_Q[BG, BG] == 1e-14
 
 
-def test_mode_setting_returns_copies(defs):
-    _, _, P0_k, Q_k = defs["mode_setting"]("bias_known")
-    P0_k[0, 0] = Q_k[0, 0] = -1
-    assert defs["P0"][0, 0] == 0.1 and defs["Q"][0, 0] == 1e-4
+def test_mode_settings_do_not_modify_shared_P0_Q(golden_run, defs):
+    ns = golden_run.namespace
+    assert_array_equal(ns["P0"], defs["P0"])
+    assert_array_equal(ns["Q"], defs["Q"])
+
+
+@pytest.mark.parametrize("mode, clipped", [
+    ("projection", True), ("analytic", True), ("nn", True),
+    ("baseline_check", False), ("bias_known", False), ("bias_constant", False),
+])
+def test_slip_projection_only_in_projected_modes(golden_run, defs, mode, clipped):
+    """存下的結果 = 更新後狀態；投影模式的 λ 另外 clip 到 [0, LAMBDA_MAX]。"""
+    SLIP = defs["SLIP"]
+    posterior = np.array(golden_run.ukf[mode].log["x_post"])
+    result = golden_run.namespace["ukf_results"][mode]
+    expected = np.clip(posterior[:, SLIP], 0, defs["LAMBDA_MAX"]) if clipped else posterior[:, SLIP]
+    assert_array_equal(result[:, SLIP], expected)
+    assert_array_equal(np.delete(result, SLIP, axis=1), np.delete(posterior, SLIP, axis=1))
+    # 邊界確實被觸發的檢查（避免空轉）見 test_bounds.py
