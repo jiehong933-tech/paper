@@ -32,6 +32,7 @@ import numpy as np
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PAPER_FILE = REPO_ROOT / "paper_code.py"
 TRAIN_FILE = REPO_ROOT / "train_nn_gyro_prior.py"
+FIG3_FILE = REPO_ROOT / "figure3_simulation.py"
 MODEL_TYPE = "gyro_curve_slip_prior_v2"
 
 # 由 load_definitions 執行的模組層級賦值（以被賦值的名稱判斷）。
@@ -127,6 +128,23 @@ def _instrumented_tree():
     return ast.fix_missing_locations(tree)
 
 
+@contextlib.contextmanager
+def _in_directory(path):
+    """暫時切換工作目錄。
+
+    執行腳本時不設定 __file__，讓腳本走 BASE_DIR = Path.cwd() 的分支（與 Colab 相同），
+    輸出因此寫進 workdir；同時 coverage 才會把執行紀錄對應到 repo 內的原始檔
+    （coverage 會優先採用 __file__ 指向的路徑）。
+    """
+    import os
+    previous = os.getcwd()
+    os.chdir(path)
+    try:
+        yield
+    finally:
+        os.chdir(previous)
+
+
 def _recording_ukf_class(registry):
     from filterpy.kalman import UnscentedKalmanFilter
 
@@ -213,7 +231,6 @@ def run_script(workdir, payload=None, model_placeholder=True):
     registry, ekf_prior, ekf_post = [], [], []
     namespace = {
         "__name__": "paper_code_under_test",
-        "__file__": str(workdir / "paper_code.py"),
         "__ekf_prior_hook__": lambda *a: ekf_prior.append(a),
         "__ekf_post_hook__": lambda *a: ekf_post.append(a),
     }
@@ -227,6 +244,7 @@ def run_script(workdir, payload=None, model_placeholder=True):
         for p in patches:
             stack.enter_context(p)
         stack.enter_context(contextlib.redirect_stdout(buffer))
+        stack.enter_context(_in_directory(workdir))
         # 測試環境多半沒有中文字型；略過 matplotlib 的缺字訊息
         logger = logging.getLogger("matplotlib")
         level = logger.level
@@ -267,33 +285,76 @@ def speed_slip_metrics(namespace):
     return metrics
 
 
-def find_real_inputs():
-    """尋找論文實際使用的資料與權重；回傳 (data_file, model_file)，缺檔為 None。
+def find_weights():
+    """尋找 MLP 權重 nn_gyro_prior_retrained.joblib；找不到回傳 None。
 
-    搜尋順序：環境變數 PAPER_DATA_DIR、repo 根目錄、repo/figure3_output/。
+    搜尋順序：環境變數 PAPER_DATA_DIR、repo 根目錄。
     """
     import os
     roots = [Path(p) for p in [os.environ.get("PAPER_DATA_DIR")] if p] + [REPO_ROOT]
-    data = model = None
     for root in roots:
-        for candidate in (root / "figure3_shared_data.npz",
-                          root / "figure3_output" / "figure3_shared_data.npz"):
-            if data is None and candidate.exists():
-                data = candidate
-        if model is None and (root / "nn_gyro_prior_retrained.joblib").exists():
-            model = root / "nn_gyro_prior_retrained.joblib"
-    return data, model
+        if (root / "nn_gyro_prior_retrained.joblib").exists():
+            return root / "nn_gyro_prior_retrained.joblib"
+    return None
 
 
-def run_real(workdir):
-    """以論文實際資料與權重執行（連結到暫存目錄，避免輸出覆蓋 repo 內的檔案）。"""
-    data, model = find_real_inputs()
-    if data is None or model is None:
-        return None
+def run_figure3(workdir):
+    """在 workdir 執行 figure3_simulation.py，產生真實的 figure3_shared_data.npz。
+
+    圖 3 程式在模組層級直接執行；在 workdir 中執行讓輸出寫在 workdir，
+    編譯時沿用原檔路徑讓 coverage 能對應行號。回傳 (命名空間, 印出的文字)。
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
     workdir = Path(workdir)
-    (workdir / "figure3_shared_data.npz").symlink_to(data)
-    (workdir / "nn_gyro_prior_retrained.joblib").symlink_to(model)
-    return run_script(workdir, payload=None)
+    namespace = {"__name__": "figure3_under_test"}
+    code = compile(FIG3_FILE.read_text(encoding="utf-8"), str(FIG3_FILE), "exec")
+    buffer = io.StringIO()
+    logger = logging.getLogger("matplotlib")
+    level = logger.level
+    logger.setLevel(logging.ERROR)
+    try:
+        with contextlib.redirect_stdout(buffer), _in_directory(workdir):
+            exec(code, namespace)
+    finally:
+        logger.setLevel(level)
+        plt.close("all")
+    return namespace, buffer.getvalue()
+
+
+def run_real(workdir, payload=None):
+    """以真實資料執行 paper_code.py：先跑圖 3 程式產生資料，再跑主程式。
+
+    payload 為 None 時使用 find_weights() 找到的實際 MLP 權重（找不到回傳 None）；
+    否則以 payload 取代模型（只適合比較不依賴 MLP 的方法）。
+    """
+    workdir = Path(workdir)
+    if payload is None:
+        weights = find_weights()
+        if weights is None:
+            return None
+        (workdir / "nn_gyro_prior_retrained.joblib").symlink_to(weights)
+    run_figure3(workdir)
+    return run_script(workdir, payload=payload)
+
+
+def training_payload(model):
+    """以訓練程式中的 ALPHA、BLEND、KAPPA、LAMBDA_MAX 組出模型 dict（模型本身用 model）。"""
+    train = load_training()
+    return model_payload(model, IdentityScaler(), alpha=train["ALPHA"], blend=train["BLEND"],
+                         kappa=train["KAPPA"], lambda_max=train["LAMBDA_MAX"])
+
+
+class IdentityScaler:
+    def transform(self, features):
+        return np.asarray(features, dtype=float)
+
+
+# 與 MLP 權重無關的方法（paper_code.py 的 ukf_nn 以外全部）
+MLP_INDEPENDENT = ("raw_odometry", "ekf", "baseline_ukf", "ukf_projection", "ukf_analytic",
+                   "ukf_baseline_check", "ukf_bias_known", "ukf_bias_constant")
 
 
 # ---------- 訓練程式 train_nn_gyro_prior.py ----------

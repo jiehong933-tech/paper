@@ -79,9 +79,7 @@ def reference_baseline_ukf(scenario, kappa=KAPPA):
     return result
 
 
-class IdentityScaler:
-    def transform(self, features):
-        return np.asarray(features, dtype=float)
+from paper_harness import IdentityScaler  # noqa: E402,F401  （沿用同一個類別）
 
 
 class RecordingModel:
