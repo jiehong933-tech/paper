@@ -1,0 +1,57 @@
+{
+  "description": "合成資料（tests/synthetic.py，seed=20240601）與固定假模型 golden_model() 下 `paper code` 的 RMSE；非論文數值。",
+  "metrics": {
+    "raw_odometry": {
+      "speed_slip": 3.0412586746405776,
+      "speed_recovery": 0.3952053327067259
+    },
+    "ekf": {
+      "speed_slip": 4.177999926009399,
+      "speed_recovery": 4.628659311099361,
+      "slip_slip": 0.270775110319041,
+      "slip_recovery": 0.21463824742887147
+    },
+    "baseline_ukf": {
+      "speed_slip": 3.217226365176702,
+      "speed_recovery": 0.47613903083631115,
+      "slip_slip": 0.20200641519156096,
+      "slip_recovery": 0.030466928827178837
+    },
+    "ukf_projection": {
+      "speed_slip": 2.084125923072162,
+      "speed_recovery": 0.5827828288477856,
+      "slip_slip": 0.13621549046064735,
+      "slip_recovery": 0.047081411514832985
+    },
+    "ukf_analytic": {
+      "speed_slip": 1.503141096299455,
+      "speed_recovery": 1.5271915662095181,
+      "slip_slip": 0.11212412326336763,
+      "slip_recovery": 0.08438931104116333
+    },
+    "ukf_nn": {
+      "speed_slip": 1.61778486351958,
+      "speed_recovery": 1.4762453253608459,
+      "slip_slip": 0.12043314049822827,
+      "slip_recovery": 0.08117017358599889
+    },
+    "ukf_baseline_check": {
+      "speed_slip": 3.217226365176702,
+      "speed_recovery": 0.47613903083631115,
+      "slip_slip": 0.20200641519156096,
+      "slip_recovery": 0.030466928827178837
+    },
+    "ukf_bias_known": {
+      "speed_slip": 0.4796359576602349,
+      "speed_recovery": 0.5522461665718071,
+      "slip_slip": 0.03919893503721873,
+      "slip_recovery": 0.041318433895016556
+    },
+    "ukf_bias_constant": {
+      "speed_slip": 0.28133994398616774,
+      "speed_recovery": 0.4387015173237599,
+      "slip_slip": 0.023499902318184746,
+      "slip_recovery": 0.03276850567073521
+    }
+  }
+}

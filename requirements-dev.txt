@@ -1,0 +1,9 @@
+# 執行程式所需
+numpy
+filterpy==1.4.5
+scikit-learn
+joblib
+matplotlib
+# 測試
+pytest>=8
+pytest-cov
