@@ -20,8 +20,8 @@ if not data_file.exists():
     raise FileNotFoundError(f"找不到 figure3_shared_data.npz，請先執行圖 3 程式 figure3_simulation.py，"
                             f"並把檔案放在 {BASE_DIR} 或其 figure3_output/ 資料夾。")
 if not MODEL_FILE.exists():
-    raise FileNotFoundError(f"找不到 {MODEL_FILE.name}，請先在 {BASE_DIR} 執行 "
-                            f"train_nn_gyro_prior.py。")
+    raise FileNotFoundError(f"找不到 {MODEL_FILE.name}，請先執行 train_nn_gyro_prior.py"
+                            f"（模型會存在該程式所在的資料夾），並把模型檔放在 {BASE_DIR}。")
 
 with np.load(data_file) as data:
     step, truth = data["step"], data["truth"]

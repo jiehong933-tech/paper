@@ -390,7 +390,7 @@ def load_training(**overrides):
 
 def training_datasets(namespace):
     """執行訓練程式中建立 x_train、y_train、x_test、y_test 的原始碼。"""
-    names = {"rng", "x_train", "y_train", "x_test", "y_test"}
+    names = {"rng", "train_sequences", "test_sequences", "x_train", "y_train", "x_test", "y_test"}
     _exec_parts(TRAIN_FILE, lambda n: bool(_assigned_names(n)) and _assigned_names(n) <= names,
                 namespace)
     return namespace["x_train"], namespace["y_train"], namespace["x_test"], namespace["y_test"]

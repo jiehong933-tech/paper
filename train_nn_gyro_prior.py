@@ -55,13 +55,15 @@ def make_sequence(rng, augment=False):
 
     # 里程計與陀螺儀（含一個固定的陀螺儀偏差）
     odometer = speed * (1 + slip) + rng.normal(0, SIGMA_ODO, STEPS)
-    gyro = speed * KAPPA + rng.normal(0, 0.0004) + rng.normal(0, SIGMA_GYRO, STEPS)
+    gyro_bias = rng.normal(0, 0.0004)
+    gyro = speed * KAPPA + gyro_bias + rng.normal(0, SIGMA_GYRO, STEPS)
 
     # 曲率速度參考：陀螺儀換算的速度經指數平滑
     curve_speed = np.zeros(STEPS)
     previous = np.clip(speed[0] + rng.normal(0, 0.5), 10, 30)
     for k in range(STEPS):
-        previous = curve_speed[k] = (1 - ALPHA) * previous + ALPHA * np.clip(gyro[k] / KAPPA, 10, 30)
+        previous = (1 - ALPHA) * previous + ALPHA * np.clip(gyro[k] / KAPPA, 10, 30)
+        curve_speed[k] = previous
 
     # 模擬濾波器目前的打滑率估計
     estimated_slip = np.zeros(STEPS)
@@ -81,9 +83,13 @@ def make_sequence(rng, augment=False):
 
 # 3. 建立資料集並訓練 MLP
 rng = np.random.default_rng(TRAIN_SEED)
-x_train, y_train = map(np.concatenate, zip(*[make_sequence(rng, True) for _ in range(N_TRAIN)]))
+train_sequences = [make_sequence(rng, augment=True) for _ in range(N_TRAIN)]
 rng = np.random.default_rng(TEST_SEED)
-x_test, y_test = map(np.concatenate, zip(*[make_sequence(rng) for _ in range(N_TEST)]))
+test_sequences = [make_sequence(rng) for _ in range(N_TEST)]
+x_train = np.vstack([features for features, target in train_sequences])
+y_train = np.hstack([target for features, target in train_sequences])
+x_test = np.vstack([features for features, target in test_sequences])
+y_test = np.hstack([target for features, target in test_sequences])
 
 scaler = StandardScaler()
 model = MLPRegressor(
