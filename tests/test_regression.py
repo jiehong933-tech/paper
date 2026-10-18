@@ -11,8 +11,8 @@ B. 論文第四章（slow）：測試中先執行 figure3_simulation.py 產生 s
        (15 m/s, 0.34)，兩者皆近似滿足 v(1+λ) ≈ 20 m/s。
      - 全精度回歸基準 tests/data/figure3_regression_baseline.json（相對誤差 1e-6）。
 
-C. MLP 先驗 UKF 與 MLP 本身（slow）：需要 MLP 權重 nn_gyro_prior_retrained.joblib
-   （repo 根目錄或 PAPER_DATA_DIR），找不到時 skip。檢查表 5／表 6 的 MLP 列、第 4.5 節
+C. MLP 先驗 UKF 與 MLP 本身（slow）：使用 repo 內附的 MLP 權重 nn_gyro_prior_retrained.joblib
+   （PAPER_DATA_DIR 可指定另一組；找不到時 skip）。檢查表 5／表 6 的 MLP 列、第 4.5 節
    的暫態描述、式 (60) 的測試指標、第 83 個 epoch 停止／第 67 個 epoch 最佳，以及
    式 (61) 自由遞迴的穩態值。
 """
@@ -136,8 +136,8 @@ def test_figure3_baseline_agrees_with_thesis_tables():
 def weights():
     path = find_weights()
     if path is None:
-        pytest.skip("找不到 MLP 權重 nn_gyro_prior_retrained.joblib（repo 內未附；"
-                    "可放在 repo 根目錄或以 PAPER_DATA_DIR 指定）")
+        pytest.skip("找不到 MLP 權重 nn_gyro_prior_retrained.joblib（應位於 repo 根目錄，"
+                    "或以 PAPER_DATA_DIR 指定）")
     import joblib
     return joblib.load(path)
 
