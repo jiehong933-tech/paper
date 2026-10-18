@@ -60,19 +60,19 @@ NOT_REPRODUCED = (
 
 
 @pytest.mark.slow
-@pytest.mark.xfail(strict=False, reason=NOT_REPRODUCED + "EKF 恢復段 5.119（論文 3.796）")
+@pytest.mark.xfail(strict=False, raises=AssertionError, reason=NOT_REPRODUCED + "EKF 恢復段 5.119（論文 3.796）")
 def test_paper_ekf_recovery_rmse(real_metrics):
     assert real_metrics["ekf"]["speed_recovery"] == pytest.approx(3.796, abs=1e-3)
 
 
 @pytest.mark.slow
-@pytest.mark.xfail(strict=False, reason=NOT_REPRODUCED + "基準 UKF 恢復段 4.791（論文 5.842）")
+@pytest.mark.xfail(strict=False, raises=AssertionError, reason=NOT_REPRODUCED + "基準 UKF 恢復段 4.791（論文 5.842）")
 def test_paper_baseline_ukf_recovery_rmse(real_metrics):
     assert real_metrics["baseline_ukf"]["speed_recovery"] == pytest.approx(5.842, abs=1e-3)
 
 
 @pytest.mark.slow
-@pytest.mark.xfail(strict=False, reason=NOT_REPRODUCED + "EKF 打滑段 2.830（論文 > 3.0）")
+@pytest.mark.xfail(strict=False, raises=AssertionError, reason=NOT_REPRODUCED + "EKF 打滑段 2.830（論文 > 3.0）")
 def test_paper_ekf_fails_during_slip(real_metrics):
     assert real_metrics["ekf"]["speed_slip"] > 3.0
 
@@ -110,7 +110,7 @@ def nn_metrics(tmp_path_factory):
 
 
 @pytest.mark.slow
-@pytest.mark.xfail(strict=False, reason=(
+@pytest.mark.xfail(strict=False, raises=AssertionError, reason=(
     "目前的圖 3 資料已與論文不同（見 B 段的 EKF／基準 UKF），NN-UKF 不論權重為何都無法對上；"
     "以 train_nn_gyro_prior.py 重訓的權重（83 epoch）實際為恢復段 0.725、打滑段 0.570"
     "（論文 1.034、1.120）"))

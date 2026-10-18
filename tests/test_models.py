@@ -176,5 +176,4 @@ def test_slip_projection_only_in_projected_modes(golden_run, defs, mode, clipped
     expected = np.clip(posterior[:, SLIP], 0, defs["LAMBDA_MAX"]) if clipped else posterior[:, SLIP]
     assert_array_equal(result[:, SLIP], expected)
     assert_array_equal(np.delete(result, SLIP, axis=1), np.delete(posterior, SLIP, axis=1))
-    if not clipped:   # 合成資料中，未投影模式的 λ 確實會跑出範圍
-        assert posterior[:, SLIP].min() < 0 or posterior[:, SLIP].max() > defs["LAMBDA_MAX"]
+    # 邊界確實被觸發的檢查（避免空轉）見 test_bounds.py

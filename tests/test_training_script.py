@@ -4,6 +4,7 @@
 """
 
 import ast
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -22,11 +23,11 @@ def train():
     return load_training()
 
 
-def test_constants_consistent_with_paper_code(train):
-    assert (train["DT"], train["STEPS"]) == (0.1, 600)
+def test_constants_consistent_with_paper_code(train, defs):
+    assert (train["DT"], train["STEPS"]) == (defs["DT"], 600)
     assert (train["SIGMA_ODO"], train["SIGMA_GYRO"]) == (0.4, 0.01)
-    # 與 paper_code.py 的 R = diag(0.4², 0.01²) 一致
-    assert "R = np.diag([0.4 ** 2, 0.01 ** 2])" in paper_source()
+    # 訓練資料的雜訊與 paper_code.py 的量測雜訊 R 一致
+    assert_array_equal(defs["R"], np.diag([train["SIGMA_ODO"] ** 2, train["SIGMA_GYRO"] ** 2]))
     # 合成測試使用與訓練程式相同的參數
     assert (train["KAPPA"], train["ALPHA"], train["BLEND"], train["LAMBDA_MAX"]) == \
         (synthetic.KAPPA, synthetic.ALPHA, synthetic.BLEND, synthetic.LAMBDA_MAX)
@@ -136,3 +137,68 @@ def test_rollout_matches_paper_fx_blend(train, defs):
     histories, _ = training_rollout(train, synthetic.RecordingModel(bias=prior),
                                     synthetic.IdentityScaler())
     assert_allclose(histories[0][1], blended, rtol=1e-15)
+
+
+# ---------- 固定訓練設定：資料產生方式、MLP 超參數、合理性檢查門檻 ----------
+
+def test_make_sequence_fingerprint(train):
+    """make_sequence 的輸出與記錄的指紋相同（擴增比例、打滑事件、雜訊等任何改動都會被抓到）。"""
+    import json
+    import sys
+    sys.path.insert(0, str(TRAIN_FILE.parent / "tests" / "tools"))
+    from make_training_fingerprint import fingerprint
+
+    saved = json.loads((TRAIN_FILE.parent / "tests" / "data" / "training_fingerprint.json")
+                       .read_text(encoding="utf-8"))["fingerprint"]
+    current = fingerprint(train["make_sequence"])
+    for key, rows in saved.items():
+        for saved_row, row in zip(rows, current[key]):
+            assert row["slip_steps"] == saved_row["slip_steps"]
+            for field in ("feature_sums", "target_sum", "row_0", "row_300"):
+                assert_allclose(row[field], saved_row[field], rtol=1e-12, err_msg=f"{key} {field}")
+
+
+def _training_tree():
+    return ast.parse(TRAIN_FILE.read_text(encoding="utf-8"))
+
+
+def test_mlp_hyperparameters_pinned():
+    call = next(node for node in ast.walk(_training_tree())
+                if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "MLPRegressor")
+    kwargs = {kw.arg: ast.unparse(kw.value) for kw in call.keywords}
+    assert kwargs == {
+        "hidden_layer_sizes": "(64, 64)", "activation": "'tanh'", "solver": "'adam'",
+        "learning_rate_init": "0.001", "batch_size": "2048", "max_iter": "150",
+        "early_stopping": "True", "validation_fraction": "0.15", "n_iter_no_change": "15",
+        "random_state": "MODEL_SEED",
+    }
+
+
+def test_sanity_thresholds_pinned():
+    """訓練後的三個合理性檢查（失敗時 raise RuntimeError）門檻不變。"""
+    checks = [ast.unparse(node.test) for node in _training_tree().body
+              if isinstance(node, ast.If) and isinstance(node.body[0], ast.Raise)]
+    assert checks == [
+        "active_rmse > 0.06",
+        "abs(final_values[0]) > 0.02",
+        "abs(final_values[1] - 0.1) > 0.04 or abs(final_values[2] - 0.2) > 0.04",
+    ]
+
+
+def _clip_bounds(path, suffix):
+    """回傳檔案中第一個參數以 suffix 結尾的 np.clip(...) 的上下界集合。"""
+    tree = ast.parse(Path(path).read_text(encoding="utf-8"))
+    return {(ast.literal_eval(node.args[1]), ast.literal_eval(node.args[2]))
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call) and ast.unparse(node.func) == "np.clip"
+            and ast.unparse(node.args[0]).endswith(suffix)}
+
+
+@pytest.mark.parametrize("training_suffix, paper_suffix, bounds", [
+    ("/ curve_speed - 1", "/ curve_speed - 1", (-0.30, 0.60)),   # 里程計差異特徵
+    ("/ KAPPA", "/ KAPPA", (10, 30)),                             # 曲率速度
+])
+def test_feature_clips_match_between_training_and_inference(training_suffix, paper_suffix, bounds):
+    """MLP 的輸入特徵在訓練與推論（paper_code.py）時用相同的限制範圍建立。"""
+    assert _clip_bounds(TRAIN_FILE, training_suffix) == {bounds}
+    assert _clip_bounds(PAPER_FILE, paper_suffix) == {bounds}

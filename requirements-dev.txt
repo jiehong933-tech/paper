@@ -7,3 +7,8 @@ matplotlib
 # 測試
 pytest>=8
 pytest-cov
+
+# 產生 tests/data 中回歸基準與重訓模型時的版本（Python 3.13）：
+#   numpy 2.5.4、scipy 1.18.1、scikit-learn 1.9.1、filterpy 1.4.5、matplotlib 3.11.2
+# 回歸基準的容許誤差（相對 1e-6）足以吸收不同版本／BLAS 的捨入差異；
+# 但 MLP 是 scikit-learn 物件，重新訓練的結果與 joblib 檔都和 scikit-learn 版本綁定。

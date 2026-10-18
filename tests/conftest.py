@@ -46,8 +46,14 @@ def golden_run(tmp_path_factory, scenario):
 
 @pytest.fixture(scope="session")
 def run_factory(tmp_path_factory, scenario):
-    def factory(model, name="run", **params):
-        return _run(tmp_path_factory, scenario, model, name, **params)
+    """factory(model, name, scenario=None, alpha=..., blend=..., kappa=..., lambda_max=...)。
+
+    scenario 為 None 時使用共用的合成資料；可傳入修改過量測的副本。
+    """
+    def factory(model, name="run", scenario=None, **params):
+        data = scenario if scenario is not None else default_scenario
+        return _run(tmp_path_factory, data, model, name, **params)
+    default_scenario = scenario
     return factory
 
 

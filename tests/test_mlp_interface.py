@@ -56,7 +56,7 @@ def test_modes_without_prior_pass_none(golden_run, mode):
 
 
 def test_update_sigma_points_regenerated_from_prior(golden_run):
-    """更新前 sigmas_f 由含 Q 的先驗 (x⁻, P⁻) 重新產生（程式第 127 行）。"""
+    """更新前 sigmas_f 由含 Q 的先驗 (x⁻, P⁻) 重新產生（`kf.sigmas_f = points.sigma_points(...)`）。"""
     points = MerweScaledSigmaPoints(6, alpha=0.1, beta=2.0, kappa=0.0)
     log = golden_run.ukf["nn"].log
     for k in (0, 1, 250, 599):
@@ -79,7 +79,7 @@ def test_nn_equals_projection_when_blend_zero(run_factory):
     assert_array_equal(run.namespace["nn_ukf"], run.namespace["projection_ukf"])
 
 
-@pytest.mark.xfail(strict=True, reason=(
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason=(
     "設計差異而非數值錯誤：程式的 MLP 輸出是絕對打滑率先驗 λ_prior（不是 Δλ），"
     "在 fx 中以 λ⁻=(1−BLEND)λ+BLEND·λ_prior 混合；輸出 0 會把 λ 往 0 拉。"
     "此外 nn 模式另有 λ∈[0, LAMBDA_MAX] 投影，baseline UKF 沒有。"

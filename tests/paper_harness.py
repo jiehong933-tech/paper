@@ -161,12 +161,14 @@ def _recording_ukf_class(registry):
             super().__init__(dim_x, dim_z, dt, hx, recording_fx, points, **kwargs)
             self.log = {k: [] for k in (
                 "x_prior", "P_prior", "x_post", "P_post", "y", "S",
-                "sigmas_update", "z")}
+                "sigmas_update", "z", "P_before_predict")}
             registry.append(self)
 
         def predict(self, dt=None, UT=None, fx=None, **fx_args):
             if not self.fx_calls:  # 第一次 predict 前：記錄程式設定的 P0 與 Q
                 self.initial_P, self.initial_Q = self.P.copy(), np.array(self.Q, copy=True)
+            # 每次 predict 前的 P＝上一步更新（及程式自己的處理，如 λ 投影）之後的 P
+            self.log["P_before_predict"].append(self.P.copy())
             self.fx_calls.append([])
             super().predict(dt=dt, UT=UT, fx=fx, **fx_args)
             self.log["x_prior"].append(self.x.copy())

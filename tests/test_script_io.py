@@ -51,7 +51,9 @@ def test_data_fallback_subdir_and_estimate_key(tmp_path, scenario, golden_run):
     assert_array_equal(run.namespace["nn_ukf"], golden_run.namespace["nn_ukf"])
 
 
-def test_baseline_check_reproduces_figure3_baseline(golden_run):
+def test_baseline_check_matches_reference_reimplementation(golden_run):
+    """合成資料的 ukf_result 由 tests/synthetic.py 的獨立實作產生；paper_code.py 的
+    baseline_check 應與之相同。（與真正 figure3_simulation.py 的比對見 test_figure3.py。）"""
     ns = golden_run.namespace
     assert ns["max_gap"] <= 1e-6
     assert "警告" not in golden_run.stdout
