@@ -1,4 +1,4 @@
-"""依目前的 `paper code` 產生合成資料回歸基準 tests/data/synthetic_golden.json。
+"""依目前的 `paper_code.py` 產生合成資料回歸基準 tests/data/synthetic_golden.json。
 
 只有在「刻意」改變數值行為後才需要重新產生：
     python tests/tools/make_synthetic_golden.py
@@ -25,7 +25,7 @@ def main():
                                                 synthetic.IdentityScaler()))
     out = {
         "description": "合成資料（tests/synthetic.py，seed=%d）與固定假模型 golden_model() "
-                       "下 `paper code` 的 RMSE；非論文數值。" % synthetic.SEED,
+                       "下 `paper_code.py` 的 RMSE；非論文數值。" % synthetic.SEED,
         "metrics": speed_slip_metrics(run.namespace),
     }
     path = TESTS / "data" / "synthetic_golden.json"

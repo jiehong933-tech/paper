@@ -13,11 +13,11 @@ from filterpy.kalman import UnscentedKalmanFilter as UKF
 #    檔案放在程式所在資料夾（Colab 為目前資料夾），圖 3 資料也可放在 figure3_output/。
 BASE_DIR = Path(__file__).resolve().parent if "__file__" in globals() else Path.cwd()
 MODEL_FILE = BASE_DIR / "nn_gyro_prior_retrained.joblib"   # 由 train_nn_gyro_prior.py 產生
-data_file = BASE_DIR / "figure3_shared_data.npz"            # 由圖 3 程式產生
+data_file = BASE_DIR / "figure3_shared_data.npz"            # 由 figure3_simulation.py 產生
 if not data_file.exists():
     data_file = BASE_DIR / "figure3_output/figure3_shared_data.npz"
 if not data_file.exists():
-    raise FileNotFoundError(f"找不到 figure3_shared_data.npz，請先執行圖 3 程式，"
+    raise FileNotFoundError(f"找不到 figure3_shared_data.npz，請先執行圖 3 程式 figure3_simulation.py，"
                             f"並把檔案放在 {BASE_DIR} 或其 figure3_output/ 資料夾。")
 if not MODEL_FILE.exists():
     raise FileNotFoundError(f"找不到 {MODEL_FILE.name}，請先在 {BASE_DIR} 執行 "

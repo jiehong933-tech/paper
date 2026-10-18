@@ -1,4 +1,4 @@
-"""`paper code` 整體流程：資料／模型讀取、基準 UKF 重建檢查與輸出檔格式。"""
+"""`paper_code.py` 整體流程：資料／模型讀取、基準 UKF 重建檢查與輸出檔格式。"""
 
 import numpy as np
 import pytest

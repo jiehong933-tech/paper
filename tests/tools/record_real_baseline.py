@@ -1,4 +1,4 @@
-"""以論文實際資料與 MLP 權重執行 `paper code`，記錄所有方法的 RMSE 作為回歸基準。
+"""以論文實際資料與 MLP 權重執行 `paper_code.py`，記錄所有方法的 RMSE 作為回歸基準。
 
 需要 figure3_shared_data.npz 與 nn_gyro_prior_retrained.joblib（放在 repo 根目錄、
 repo/figure3_output/，或以環境變數 PAPER_DATA_DIR 指定資料夾）：

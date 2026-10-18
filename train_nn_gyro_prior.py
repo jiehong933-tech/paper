@@ -19,7 +19,7 @@ ALPHA, BLEND, LAMBDA_MAX = 0.02, 0.06, 0.4
 N_TRAIN, N_TEST = 800, 200
 TRAIN_SEED, TEST_SEED, MODEL_SEED = 1, 99, 42
 
-# 輸出到程式所在資料夾（Colab 為目前資料夾），與 paper code 讀取的位置相同。
+# 輸出到程式所在資料夾（Colab 為目前資料夾），與 paper_code.py 讀取的位置相同。
 # 檔名避免覆蓋論文原本使用的模型。
 BASE_DIR = Path(__file__).resolve().parent if "__file__" in globals() else Path.cwd()
 MODEL_FILE = BASE_DIR / "nn_gyro_prior_retrained.joblib"
@@ -134,7 +134,7 @@ if abs(final_values[1] - 0.10) > 0.04 or abs(final_values[2] - 0.20) > 0.04:
     raise RuntimeError("自由遞迴穩態結果不合理")
 
 
-# 5. 儲存模型與版本資訊（paper code 會讀取 model、scaler 與四個參數）
+# 5. 儲存模型與版本資訊（paper_code.py 會讀取 model、scaler 與四個參數）
 joblib.dump({
     "model_type": "gyro_curve_slip_prior_v2",
     "run_label": "retrained_current_code_not_paper_epoch40",

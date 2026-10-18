@@ -1,7 +1,7 @@
 """測試項目 8：回歸測試。
 
 A. 合成資料回歸（快速）：以固定合成資料與固定假模型（不訓練）重跑整份
-   `paper code`，與 tests/data/synthetic_golden.json 比對。基準值由
+   `paper_code.py`，與 tests/data/synthetic_golden.json 比對。基準值由
    tests/tools/make_synthetic_golden.py 依「目前程式」產生，用來偵測日後
    修改是否改變了數值結果。
 

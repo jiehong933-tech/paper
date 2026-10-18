@@ -1,7 +1,8 @@
-"""在不修改原始程式的前提下，載入與執行 `paper code` 與 `train_nn_gyro_prior.py`。
+"""在不修改原始程式的前提下，載入與執行 `figure3_simulation.py`、
+`train_nn_gyro_prior.py` 與 `paper_code.py`。
 
-`paper code` 是沒有副檔名、在模組層級直接讀檔、跑模擬、畫圖與輸出的腳本，
-無法直接 import。本模組提供兩種方式：
+三支程式都是在模組層級直接讀檔、跑模擬、畫圖與輸出的腳本，import 就會整支執行。
+本模組提供兩種方式：
 
 1. ``load_definitions``：用 AST 只挑出常數與函式定義（fx、hx、rmse、
    EKF 的 F 矩陣、區段切分 slice）執行，外部參數
@@ -29,7 +30,7 @@ from unittest import mock
 import numpy as np
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PAPER_FILE = REPO_ROOT / "paper code"
+PAPER_FILE = REPO_ROOT / "paper_code.py"
 TRAIN_FILE = REPO_ROOT / "train_nn_gyro_prior.py"
 MODEL_TYPE = "gyro_curve_slip_prior_v2"
 
@@ -59,7 +60,7 @@ def _target_names(target):
 
 def load_definitions(alpha=0.02, blend=0.06, kappa=0.002, lambda_max=0.4,
                      n_steps=600):
-    """執行 `paper code` 中的常數與函式定義，回傳命名空間 dict。"""
+    """執行 `paper_code.py` 中的常數與函式定義，回傳命名空間 dict。"""
     tree = ast.parse(paper_source(), filename=str(PAPER_FILE))
     selected = []
     for node in tree.body:
@@ -177,7 +178,7 @@ class ScriptRun:
 
 def model_payload(model, scaler, alpha=0.02, blend=0.06, kappa=0.002,
                   lambda_max=0.4, model_type=MODEL_TYPE):
-    """組出與 `paper code` 讀取格式相同的模型 dict。"""
+    """組出與 `paper_code.py` 讀取格式相同的模型 dict。"""
     return {"model_type": model_type, "model": model, "scaler": scaler,
             "alpha": alpha, "blend": blend, "kappa": kappa,
             "lambda_max": lambda_max}
@@ -195,7 +196,7 @@ def write_data(directory, scenario, baseline_key="ukf_result", subdir=None):
 
 
 def run_script(workdir, payload=None, model_placeholder=True):
-    """在 workdir 執行整份 `paper code`。
+    """在 workdir 執行整份 `paper_code.py`。
 
     workdir 內需已有 figure3_shared_data.npz（或 figure3_output/ 子目錄）。
     payload 為 None 時使用 workdir 內真正的 joblib 模型檔；否則 joblib.load 直接回傳
@@ -243,7 +244,7 @@ def run_script(workdir, payload=None, model_placeholder=True):
 
 
 def speed_slip_metrics(namespace):
-    """以 `paper code` 自己的 rmse 與區段，計算各方法的速度／打滑率 RMSE。
+    """以 `paper_code.py` 自己的 rmse 與區段，計算各方法的速度／打滑率 RMSE。
 
     回傳 {方法: {"speed_slip", "speed_recovery", "slip_slip", "slip_recovery"}}；
     Raw Odometry 只有速度兩項。

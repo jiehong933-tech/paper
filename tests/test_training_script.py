@@ -1,4 +1,4 @@
-"""train_nn_gyro_prior.py：資料產生、資料集組裝、自由遞迴測試，以及與 paper code 的銜接。
+"""train_nn_gyro_prior.py：資料產生、資料集組裝、自由遞迴測試，以及與 paper_code.py 的銜接。
 
 訓練程式在模組層級直接訓練，因此以 AST 只執行需要的部分（不訓練 MLP）。
 """
@@ -25,7 +25,7 @@ def train():
 def test_constants_consistent_with_paper_code(train):
     assert (train["DT"], train["STEPS"]) == (0.1, 600)
     assert (train["SIGMA_ODO"], train["SIGMA_GYRO"]) == (0.4, 0.01)
-    # 與 paper code 的 R = diag(0.4², 0.01²) 一致
+    # 與 paper_code.py 的 R = diag(0.4², 0.01²) 一致
     assert "R = np.diag([0.4 ** 2, 0.01 ** 2])" in paper_source()
     # 合成測試使用與訓練程式相同的參數
     assert (train["KAPPA"], train["ALPHA"], train["BLEND"], train["LAMBDA_MAX"]) == \
@@ -35,7 +35,7 @@ def test_constants_consistent_with_paper_code(train):
 # ---------- 兩支程式的銜接：檔名、存放位置、模型欄位 ----------
 
 def test_model_file_name_and_folder_match():
-    """訓練程式輸出與 paper code 讀取的是同一個檔名，且都放在 BASE_DIR（程式所在資料夾）。"""
+    """訓練程式輸出與 paper_code.py 讀取的是同一個檔名，且都放在 BASE_DIR（程式所在資料夾）。"""
     for name in ("BASE_DIR", "MODEL_FILE"):
         assert ast.dump(module_assign(TRAIN_FILE, name)) == ast.dump(module_assign(PAPER_FILE, name))
     model_file = module_assign(PAPER_FILE, "MODEL_FILE")
@@ -129,7 +129,7 @@ def test_rollout_features_and_output_clip(train):
 
 
 def test_rollout_matches_paper_fx_blend(train, defs):
-    """自由遞迴的混合式與 paper code 的 fx（slip_prior 分支）相同。"""
+    """自由遞迴的混合式與 paper_code.py 的 fx（slip_prior 分支）相同。"""
     x = np.array([0.0, 20.0, 0.0, 0.3, 0.0, 0.0])
     prior = 0.12
     blended = defs["fx"](x, defs["DT"], np.zeros(2), slip_prior=prior)[defs["SLIP"]]

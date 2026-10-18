@@ -1,8 +1,8 @@
 [run]
-# `paper code` 沒有 .py 副檔名，需明確列入
 include =
-    paper code
+    paper_code.py
     train_nn_gyro_prior.py
+    figure3_simulation.py
 
 [report]
 show_missing = True

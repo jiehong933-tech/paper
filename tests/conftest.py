@@ -13,7 +13,7 @@ from paper_harness import load_definitions, model_payload, run_script, write_dat
 
 @pytest.fixture(scope="session")
 def defs():
-    """`paper code` 的常數與函式（外部參數使用合成值）。"""
+    """`paper_code.py` 的常數與函式（外部參數使用合成值）。"""
     return load_definitions(alpha=synthetic.ALPHA, blend=synthetic.BLEND,
                             kappa=synthetic.KAPPA, lambda_max=synthetic.LAMBDA_MAX,
                             n_steps=synthetic.N_STEPS)
@@ -39,7 +39,7 @@ def _run(tmp_path_factory, scenario, model, name, **params):
 
 @pytest.fixture(scope="session")
 def golden_run(tmp_path_factory, scenario):
-    """以固定假模型跑整份 `paper code`（合成資料）。"""
+    """以固定假模型跑整份 `paper_code.py`（合成資料）。"""
     return _run(tmp_path_factory, scenario, synthetic.golden_model(), "golden")
 
 
