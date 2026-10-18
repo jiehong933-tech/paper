@@ -34,8 +34,10 @@ pytest --cov --cov-config=.coveragerc    # 含覆蓋率（涵蓋三支程式）
 - 回歸測試（`tests/test_regression.py`，真實資料部分標記 `slow`）：
   - 真實資料由測試當場執行 `figure3_simulation.py` 產生；EKF、基準 UKF 等與 MLP 無關的方法
     不需要權重即可檢查，並與 `tests/data/figure3_regression_baseline.json` 比對。
-  - 論文數值目前重現不了的項目標記為 xfail（原因中附實際值）。
-  - NN-UKF 需要 MLP 權重，找不到時 skip；可把權重放在 repo 根目錄，或以環境變數指定資料夾：
+  - 以論文數值為準：表 4、表 6 的 RMSE、錯誤平衡點等（`tests/test_thesis_settings.py` 另檢查
+    論文表 2、表 3、式 (68) 與第 3.5 節的各項設定）。
+  - MLP 先驗 UKF 與 MLP 本身（表 5、式 (60)、epoch、自由遞迴）需要 MLP 權重，找不到時 skip；
+    可把權重放在 repo 根目錄，或以環境變數指定資料夾：
 
   ```bash
   PAPER_DATA_DIR=/path/to/folder pytest -m slow

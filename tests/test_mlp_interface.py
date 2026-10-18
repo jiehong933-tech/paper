@@ -1,12 +1,13 @@
 """測試項目 5：MLP 介面。
 
-程式實際的介面（以程式為準）：
+介面與論文第 3.5 節、第 4.1 節一致（式 (26)、(56)–(58)、(62)）：
   - 每個時間步在 UKF 更新「之後」呼叫一次 ``model.predict``，輸入為
     1×3 特徵 [curve_speed, clip(λ_post), difference]（經 scaler.transform），
     輸出經 clip 到 [0, LAMBDA_MAX] 後成為「下一步」的打滑率先驗 slip_prior。
   - 下一次 ``kf.predict`` 時，全部 2n+1 = 13 個 sigma point 都經過 fx，
     且收到同一個 slip_prior（在 fx 內以 BLEND 混合）。
-  也就是說 MLP 不是逐 sigma point 呼叫，而是每步一次、結果套用到所有 sigma point。
+  也就是說 MLP 不是逐 sigma point 呼叫，而是每步一次、結果套用到所有 sigma point
+  （論文：「每週期僅在後驗均值處執行一次 MLP，再將共同先驗提供給 13 個 Sigma 點」）。
 """
 
 import numpy as np
@@ -79,12 +80,16 @@ def test_nn_equals_projection_when_blend_zero(run_factory):
     assert_array_equal(run.namespace["nn_ukf"], run.namespace["projection_ukf"])
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason=(
-    "設計差異而非數值錯誤：程式的 MLP 輸出是絕對打滑率先驗 λ_prior（不是 Δλ），"
-    "在 fx 中以 λ⁻=(1−BLEND)λ+BLEND·λ_prior 混合；輸出 0 會把 λ 往 0 拉。"
-    "此外 nn 模式另有 λ∈[0, LAMBDA_MAX] 投影，baseline UKF 沒有。"
-    "因此「恆輸出 0 的假 MLP」不會與 baseline UKF 一致。"))
-def test_zero_output_mlp_matches_baseline_ukf(run_factory):
+def test_zero_output_mlp_pulls_slip_toward_zero(run_factory, golden_run, defs):
+    """論文式 (59)、(62)：MLP 輸出的是下一步打滑率的絕對值（不是 Δλ），並以
+    (1 − η_λ)λ + η_λ·λ̃ 混入全部 Sigma 點。因此恆輸出 0 的 MLP 代表「預測無打滑」，
+    會把 λ 往 0 拉，而不是等同不加先驗的基準 UKF。
+
+    （與「僅範圍投影 UKF」相比：兩者都有範圍投影，差別只在先驗。）
+    """
     run = run_factory(synthetic.zero_model(), "zero_mlp")
-    assert_allclose(run.namespace["nn_ukf"], run.namespace["baseline_ukf"],
-                    rtol=1e-9, atol=1e-9)
+    ns, SLIP = run.namespace, defs["SLIP"]
+    assert np.all(ns["nn_prior"] == 0.0)
+    slip_part = slice(200, 400)
+    assert ns["nn_ukf"][slip_part, SLIP].mean() < ns["projection_ukf"][slip_part, SLIP].mean()
+    assert not np.allclose(ns["nn_ukf"], ns["baseline_ukf"])

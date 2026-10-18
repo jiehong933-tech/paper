@@ -418,3 +418,22 @@ def module_assign(path, name):
         if _assigned_names(node) == {name}:
             return node.value
     raise LookupError(name)
+
+
+def clip_bounds(path, suffix):
+    """回傳檔案中第一個參數以 suffix 結尾的 np.clip(...) 的 (下界, 上界) 集合。"""
+    tree = ast.parse(Path(path).read_text(encoding="utf-8"))
+    return {(ast.literal_eval(node.args[1]), ast.literal_eval(node.args[2]))
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call) and ast.unparse(node.func) == "np.clip"
+            and ast.unparse(node.args[0]).endswith(suffix)}
+
+
+def statement(path, target):
+    """回傳模組層級或函式內，指定目標（如 "peak" 或 "(slip_prior, curve_speed)"）的賦值原始碼。"""
+    tree = ast.parse(Path(path).read_text(encoding="utf-8"))
+    found = [ast.unparse(node) for node in ast.walk(tree)
+             if isinstance(node, ast.Assign) and ast.unparse(node.targets[0]) == target]
+    if len(found) != 1:
+        raise LookupError(f"{target}: 找到 {len(found)} 處")
+    return found[0]

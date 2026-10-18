@@ -1,6 +1,6 @@
 """測試項目 1–3：狀態轉移 fx、觀測 hx、EKF Jacobian，以及各 UKF 模式的設定。
 
-狀態順序以程式為準：x = [s, v, ψ, λ, b_a, b_g]（S, V, YAW, SLIP, BA, BG）。
+狀態順序（論文式 (30)，程式相同）：x = [s, v, ψ, λ, b_a, b_g]（S, V, YAW, SLIP, BA, BG）。
 """
 
 import numpy as np

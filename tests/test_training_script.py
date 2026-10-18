@@ -4,14 +4,13 @@
 """
 
 import ast
-from pathlib import Path
 
 import numpy as np
 import pytest
 from numpy.testing import assert_allclose, assert_array_equal
 
 import synthetic
-from paper_harness import (MODEL_TYPE, PAPER_FILE, TRAIN_FILE, load_training,
+from paper_harness import (MODEL_TYPE, PAPER_FILE, TRAIN_FILE, clip_bounds, load_training,
                            module_assign, paper_source, training_datasets,
                            training_rollout)
 
@@ -185,20 +184,11 @@ def test_sanity_thresholds_pinned():
     ]
 
 
-def _clip_bounds(path, suffix):
-    """回傳檔案中第一個參數以 suffix 結尾的 np.clip(...) 的上下界集合。"""
-    tree = ast.parse(Path(path).read_text(encoding="utf-8"))
-    return {(ast.literal_eval(node.args[1]), ast.literal_eval(node.args[2]))
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Call) and ast.unparse(node.func) == "np.clip"
-            and ast.unparse(node.args[0]).endswith(suffix)}
-
-
 @pytest.mark.parametrize("training_suffix, paper_suffix, bounds", [
     ("/ curve_speed - 1", "/ curve_speed - 1", (-0.30, 0.60)),   # 里程計差異特徵
     ("/ KAPPA", "/ KAPPA", (10, 30)),                             # 曲率速度
 ])
 def test_feature_clips_match_between_training_and_inference(training_suffix, paper_suffix, bounds):
     """MLP 的輸入特徵在訓練與推論（paper_code.py）時用相同的限制範圍建立。"""
-    assert _clip_bounds(TRAIN_FILE, training_suffix) == {bounds}
-    assert _clip_bounds(PAPER_FILE, paper_suffix) == {bounds}
+    assert clip_bounds(TRAIN_FILE, training_suffix) == {bounds}
+    assert clip_bounds(PAPER_FILE, paper_suffix) == {bounds}
