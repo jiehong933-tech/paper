@@ -20,7 +20,7 @@ N_TRAIN, N_TEST = 800, 200
 TRAIN_SEED, TEST_SEED, MODEL_SEED = 1, 99, 42
 
 # 輸出到程式所在資料夾（Colab 為目前資料夾），與 paper_code.py 讀取的位置相同。
-# 檔名避免覆蓋論文原本使用的模型。
+# 此模型即論文第 3.5 節所用模型（第 83 個 epoch 停止、保留第 67 個 epoch 的權重）。
 BASE_DIR = Path(__file__).resolve().parent if "__file__" in globals() else Path.cwd()
 MODEL_FILE = BASE_DIR / "nn_gyro_prior_retrained.joblib"
 FIGURE_FILE = BASE_DIR / "NN_training_gyro_prior_retrained"
@@ -149,7 +149,7 @@ if abs(final_values[1] - 0.10) > 0.04 or abs(final_values[2] - 0.20) > 0.04:
 # 5. 儲存模型與版本資訊（paper_code.py 會讀取 model、scaler 與四個參數）
 joblib.dump({
     "model_type": "gyro_curve_slip_prior_v2",
-    "run_label": "retrained_current_code_not_paper_epoch40",
+    "run_label": "thesis_section_3_5_model",
     "model": model, "scaler": scaler,
     "alpha": ALPHA, "blend": BLEND, "kappa": KAPPA, "lambda_max": LAMBDA_MAX,
     "train_seed": TRAIN_SEED, "test_seed": TEST_SEED, "model_seed": MODEL_SEED,
@@ -161,16 +161,18 @@ joblib.dump({
 
 # 6. 畫圖：(a) 訓練損失、(b) 自由遞迴測試
 fig, ax = plt.subplots(2, 1, figsize=(10, 8))
-ax[0].plot(model.loss_curve_, lw=2, label="訓練損失")
-ax[0].set(yscale="log", title="(a) MLP 網路訓練收斂曲線", xlabel="Epoch", ylabel="訓練損失")
+ax[0].plot(model.loss_curve_, "b-", lw=2, label="訓練損失")
+ax[0].set(yscale="log", title="(a) MLP 網路訓練收斂曲線",
+          xlabel="訓練週期（Epoch）", ylabel="訓練損失（log scale）")
 time = np.arange(151) * DT
 for history, label in zip(histories, [r"$r_o=0.0$（打滑結束）", r"$r_o=0.1$", r"$r_o=0.2$"]):
     ax[1].plot(time, history, lw=2, label=label)
-ax[1].set(title=r"(b) 固定 $r_o$ 下的打滑率先驗自由遞迴測試",
+ax[1].axhline(0, color="k", ls="--", lw=1.5)
+ax[1].set(title=r"(b) 固定 $r_o$ 條件下的打滑率先驗自由遞迴測試",
           xlabel="時間（s）", ylabel=r"打滑率 $\lambda$")
 for graph in ax:
     graph.grid(linestyle=":", alpha=0.7)
-    graph.legend()
+    graph.legend(loc="upper right")
 plt.tight_layout()
 fig.savefig(f"{FIGURE_FILE}.pdf", bbox_inches="tight")
 fig.savefig(f"{FIGURE_FILE}.png", dpi=200, bbox_inches="tight")

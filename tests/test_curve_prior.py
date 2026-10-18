@@ -28,6 +28,9 @@ def _expected_curve_prior(measurements, alpha, kappa):
 
 
 def test_curve_speed_and_difference_recursion(golden_run):
+    """式 (53)–(55)。程式在 k = 0 就以 z_κ,0 更新一次（起始值 20 m/s 相當於 v̄κ,−1）；
+    論文文字寫 v̄κ,0 = 20 m/s，但表 6 的解析先驗 UKF 0.540 正是此慣例的結果
+    （若改成 v̄κ,0 = 20，會變成 0.5395 → 0.539）。"""
     ns = golden_run.namespace
     curves, diffs = _expected_curve_prior(ns["measurements"], synthetic.ALPHA,
                                           synthetic.KAPPA)
